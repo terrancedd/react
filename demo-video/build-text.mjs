@@ -40,7 +40,9 @@ export function buildScript() {
   md += 'Simulated walkthrough of the "Software factory prototype plan" (Oct 2026). None of the plan\'s 19 actions has started, ';
   md += 'so every screen in the video is a stylized mock-up, tagged "Prototype concept · simulated".\n\n';
   md += `Total: ${words} words, ${mmss(T.DURATION)} (${T.DURATION.toFixed(1)} s). `;
-  md += `Beat length = words / ${T.WORDS_PER_SEC} words per second + padding, with a per-beat minimum for the visuals.\n\n`;
+  md += T.VOICED
+    ? 'Beat length = measured voiceover length (one Piper clip per sentence, see build-audio.py) + 1.25 s padding, with a per-beat minimum for the visuals.\n\n'
+    : `Beat length = words / ${T.WORDS_PER_SEC} words per second + padding, with a per-beat minimum for the visuals.\n\n`;
   md += 'This file is generated from `src/timeline.js` by `node build-text.mjs`; edit the narration there.\n\n';
   let scene = null;
   for (const b of T.BEATS) {

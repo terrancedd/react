@@ -156,7 +156,7 @@ async function main() {
     const list = join(TMP, 'list.txt');
     writeFileSync(list, segs.map((s) => `file '${s}'`).join('\n'));
     const argv = ['-y', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', list];
-    if (AUDIO && existsSync(AUDIO)) argv.push('-i', AUDIO, '-map', '0:v', '-map', '1:a', '-c:a', 'aac', '-b:a', '160k', '-shortest');
+    if (AUDIO && existsSync(AUDIO)) argv.push('-i', AUDIO, '-map', '0:v', '-map', '1:a', '-c:a', 'aac', '-b:a', '192k', '-shortest');
     argv.push('-c:v', 'copy', '-movflags', '+faststart', OUT);
     await run('ffmpeg', argv);
     const srt = OUT.replace(/\.mp4$/, '.srt');

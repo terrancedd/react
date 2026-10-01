@@ -373,3 +373,9 @@ mark { background: var(--accent-soft); color: #d6e4ff; padding: 0 6px; border-ra
 
 /* highlight band used by data-hl: give the text some room inside the band */
 .jira-card .field, .jira-card .jc-title { margin-left: -16px; margin-right: -16px; padding-left: 16px; padding-right: 16px; border-radius: 8px; }
+
+/* key phrase (voiced build): short phrase in the caption position */
+#caption-text.key {
+  font-size: 32px; font-weight: 600; padding: 12px 30px; border-radius: 999px;
+  background: rgba(14, 18, 26, 0.9); border: 1px solid var(--accent-line); color: #e6edff;
+}

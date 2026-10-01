@@ -22,7 +22,7 @@
 
   // ---------- time specs ----------
   function W(spec) {
-    const m = /^(\w+)(?:#(\d+)|%([\d.]+)|(\.end))?(?::(-?[\d.]+))?$/.exec(spec.trim());
+    const m = /^(\w+)(?:#(\d+)|@(\d+)|%([\d.]+)|(\.end))?(?::(-?[\d.]+))?$/.exec(spec.trim());
     if (!m) throw new Error('bad time spec ' + spec);
     const b = B[m[1]];
     if (!b) throw new Error('unknown beat ' + m[1]);
@@ -31,9 +31,13 @@
       const c = cuesByBeat[m[1]][+m[2]];
       if (!c) throw new Error('no cue ' + spec);
       t = c.start;
-    } else if (m[3] !== undefined) t = b.start + parseFloat(m[3]) * b.dur;
-    else if (m[4]) t = b.end;
-    if (m[5]) t += parseFloat(m[5]);
+    } else if (m[3] !== undefined) {
+      const sp = b.speech[+m[3]];
+      if (!sp) throw new Error('no sentence ' + spec);
+      t = sp.start;
+    } else if (m[4] !== undefined) t = b.start + parseFloat(m[4]) * b.dur;
+    else if (m[5]) t = b.end;
+    if (m[6]) t += parseFloat(m[6]);
     return t;
   }
 
@@ -256,10 +260,10 @@
           <div class="note" data-in="approve#2:1.4" data-fx="fade">Check 11 (docs) confirmed by the human · 14 / 14 passed</div>
         </div>
       </div>
-      <div class="final" data-in="approve#2:3.3" data-fx="fade" style="top:-120px;left:-80px;right:-80px;bottom:-180px">
-        <div class="w ok" data-in="approve#2:3.5" data-fx="scale">Approved.</div>
-        <div class="w" data-in="approve#2:4.2" data-fx="scale">Not merged.</div>
-        <div class="w" data-in="approve#2:4.9" data-fx="scale">Not deployed.</div>
+      <div class="final" data-in="approve@2:-0.3" data-fx="fade" style="top:-120px;left:-80px;right:-80px;bottom:-180px">
+        <div class="w ok" data-in="approve@2" data-fx="scale">Approved.</div>
+        <div class="w" data-in="approve@3" data-fx="scale">Not merged.</div>
+        <div class="w" data-in="approve@4" data-fx="scale">Not deployed.</div>
       </div>
     </div>
   </div>`;
@@ -444,7 +448,7 @@
       '    --max-turns "$MAX_TURNS" --max-budget-usd "$MAX_USD" \\',
       '    --output-format json > .agent/result.json',
     ];
-    for (const line of cmd) t = typed(t, line, 52) + 0.15;
+    for (const line of cmd) t = typed(t, line, 75) + 0.1;
     out(W('agent#3:-0.7'), '── session transcript (replay of .agent/result.json) ──', 'dim');
     out(W('agent#3:0.0'), '[[bullet:●]] [[tool:mcp__atlassian__getJiraIssue]](DEMO-42)   [[hl-acc:read-only · the only Jira tool]]');
     out(W('agent#3:2.0'), '[[bullet:●]] [[tool:Read]]  src/date/formatDate.ts');
@@ -538,6 +542,38 @@
     countEl.style.color = passed === 14 ? 'var(--ok)' : '';
   }
 
+  // ---------- key phrases (voiced build) ----------
+  // [time spec, phrase]; each phrase holds until the next one in its beat, or the beat's end.
+  const KEY_SPECS = {
+    cold: [['cold@1', 'Jira label → one agent step → draft PR'], ['cold@2', 'Nothing merged or deployed · simulated']],
+    industry: [['industry@1', 'Six in-house systems publish details'], ['industry@2', 'Chat is the usual trigger']],
+    shape: [['shape@0', 'One shared shape']],
+    openai: [['openai@1', 'Agent stays until green · two rounds here'], ['openai@2', 'Specialist reviewers · correctness, security'], ['openai@3', 'Risk classes · a human approves every PR']],
+    constraints: [['constraints@1', 'Claude Code runs as its own process'], ['constraints@2', 'Jira web request → StartWorkflow, key only'], ['constraints@3', 'On Bedrock: CLI, hooks, skills, MCP all work']],
+    ticket: [['ticket@2', 'Repo · acceptance criteria · out of scope'], ['ticket@3', 'Label → checks → one web request'], ['ticket@4', 'Only the issue key crosses']],
+    env: [['env@0', 'One environment per ticket'], ['env@2', 'Jira moves to In Progress by its own rule']],
+    agent: [['agent@1', 'Headless · allow-listed tools · capped'], ['agent@3', 'Stop hook: repair round 1 of 2'], ['agent@5', 'The script is the gate, not the hook']],
+    review: [['review@0', 'Two fresh-session reviews'], ['review@1', 'Correctness: 1 minor, resolved · security: 0']],
+    pr: [['pr@0', 'Conventional Commit + Jira key, signed'], ['pr@1', 'Draft PR · ai-generated · requester trailer']],
+    checks: [['checks@0', '14 checks: 9 native rules, 5 custom or human'], ['checks@1', 'Green → ready for review · code owners · risk: low']],
+    approve: [['approve@0', 'Jira updates itself · agent has no Jira write tool']],
+    failclosed: [['failclosed@1', 'Fail closed: no PR, a ticket comment instead'], ['failclosed@3', 'Worst failure: passes CI but wrong']],
+    repair: [['repair@1', 'Red check → StartWorkflow with PR + log · max twice']],
+    inject: [['inject@0', 'Prompt-injection test'], ['inject@1', 'Structural controls, not prompt text']],
+    score: [['score@1', 'OpenTelemetry tagged with the ticket key'], ['score@2', 'Caps: turns · budget · maxParallel · pinned versions']],
+    controls: [['controls@0', 'A structural control for each risk'], ['controls@1', 'Approval + audit trail ↔ MAS TRM']],
+    phases: [['phases@0', '19 actions · five phases · none started'], ['phases@1', 'Decide: where it runs · identity · trigger']],
+    end: [],
+  };
+  const KEYS = [];
+  for (const [beat, list] of Object.entries(KEY_SPECS)) {
+    list.forEach(([spec, text], i) => {
+      const a = W(spec);
+      const b = i + 1 < list.length ? W(list[i + 1][0]) - 0.05 : B[beat].end - 0.35;
+      KEYS.push({ a, b, text });
+    });
+  }
+
   // ---------- per-frame ----------
   const labelEl = document.getElementById('section-label');
   const capEl = document.getElementById('caption-text');
@@ -625,14 +661,25 @@
       loopPath.setAttribute('stroke-dashoffset', String(1800 * (1 - p)));
     }
 
-    // caption
-    const cue = TL.CUES.find((c) => t >= c.start && t < c.end);
-    if (cue) {
-      const o = Math.min(easeOut(prog(t, cue.start, 0.15)), 1 - easeOut(prog(t, cue.end - 0.12, 0.12)));
-      capEl.innerHTML = cue.lines.map(esc).join('<br>');
-      capEl.style.opacity = o.toFixed(3);
+    // narration text: key phrases when voiced (full captions live in the SRT), else burned-in captions
+    if (TL.VOICED) {
+      const k = KEYS.find((x) => t >= x.a && t < x.b);
+      if (k) {
+        const o = Math.min(easeOut(prog(t, k.a, 0.3)), 1 - easeOut(prog(t, k.b - 0.3, 0.3)));
+        if (capEl.dataset.k !== k.text) { capEl.innerHTML = esc(k.text); capEl.dataset.k = k.text; }
+        capEl.className = 'key';
+        capEl.style.opacity = o.toFixed(3);
+        capEl.style.transform = `translateY(${((1 - easeOut(prog(t, k.a, 0.3))) * 12).toFixed(2)}px)`;
+      } else { capEl.innerHTML = ''; capEl.dataset.k = ''; }
     } else {
-      capEl.innerHTML = '';
+      const cue = TL.CUES.find((c) => t >= c.start && t < c.end);
+      if (cue) {
+        const o = Math.min(easeOut(prog(t, cue.start, 0.15)), 1 - easeOut(prog(t, cue.end - 0.12, 0.12)));
+        capEl.innerHTML = cue.lines.map(esc).join('<br>');
+        capEl.style.opacity = o.toFixed(3);
+      } else {
+        capEl.innerHTML = '';
+      }
     }
 
     progEl.style.width = ((t / TL.DURATION) * 100).toFixed(3) + '%';

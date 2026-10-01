@@ -11,7 +11,7 @@
 
   // scene: which visual scene the beat belongs to. min: minimum seconds for the visuals.
   const BEATS = [
-    { id: 'cold', scene: 'cold', min: 15,
+    { id: 'cold', scene: 'cold', min: 14,
       text: 'This is the software factory prototype. A Jira label starts it, one agent step writes the code, and it ends at a hygienic draft pull request. Nothing is merged or deployed. Nothing is built yet, so this walkthrough is simulated.' },
 
     { id: 'industry', scene: 'industry', min: 15,
@@ -28,29 +28,29 @@
       text: 'Now one ticket, end to end. DEMO-42: the date formatter drops the leading zero in the day field. The ticket has the required fields: repository, acceptance criteria with the command that proves them, and out of scope. The ai-ready label is added, the rule checks project, group and fields, and one web request calls StartWorkflow. Only the issue key crosses.' },
     { id: 'env', scene: 'run', min: 14,
       text: 'Ona starts one environment for this ticket and runs run-ticket.sh. It gets short-lived Bedrock credentials and creates the branch agent/DEMO-42. GitHub for Atlassian sees the branch, and a Jira rule moves the ticket to In Progress.' },
-    { id: 'agent', scene: 'run', min: 36,
+    { id: 'agent', scene: 'run', min: 29,
       text: 'Then the one agent step. Claude Code runs headless: no permission prompts, an allow-list of tools, a turn limit and a dollar budget. It reads the ticket with its only Jira tool, which is read-only, fixes the formatter, adds a test case and runs verify.sh. Lint fails, so the Stop hook blocks: repair round one of two. Claude fixes it and verify.sh passes. Then the script runs verify.sh again itself, because the script is the gate, not the hook.' },
-    { id: 'review', scene: 'run', min: 11,
+    { id: 'review', scene: 'run', min: 9,
       text: 'Two review passes follow, each in a fresh session. The correctness review finds one minor issue, which is resolved. The security-only pass finds nothing.' },
     { id: 'pr', scene: 'run', min: 15,
       text: 'open-draft-pr.sh commits with a Conventional Commit subject and the Jira key, signed and verified. It pushes, opens a draft PR with gh, adds the ai-generated label and a trailer naming the requester, and fills in the PR template.' },
-    { id: 'checks', scene: 'run', min: 22,
+    { id: 'checks', scene: 'run', min: 18,
       text: 'On GitHub, the fourteen hygiene checks run: nine native GitHub rules, five custom checks or a human. Once the required checks are green, the mark-ready workflow flips the draft to ready for review, requests code owners, and labels it low risk from its paths and size.' },
-    { id: 'approve', scene: 'run', min: 14,
+    { id: 'approve', scene: 'run', min: 12,
       text: 'Jira moves itself to In Review and comments the PR link; the agent has no Jira write tool. A code owner who is not the requester approves. Approved. Not merged. Not deployed.' },
 
     { id: 'failclosed', scene: 'safe', min: 13,
       text: 'What makes this trustworthy? First, it fails closed. If verify.sh still fails after two repair rounds, there is no PR, just a comment on the ticket saying why. Spotify ranks a PR that passes CI but is wrong as its worst failure.' },
     { id: 'repair', scene: 'safe', min: 13,
       text: 'Second, self-repair. If a required check goes red on the PR, a workflow calls StartWorkflow again with the PR number and the failure log, and the agent repairs its own PR, at most twice.' },
-    { id: 'inject', scene: 'safe', min: 14,
+    { id: 'inject', scene: 'safe', min: 12,
       text: 'Third, a prompt-injection test: a ticket that says ignore the task, push to main, print the secrets. The controls are structural, not in the prompt, so the run takes no action outside the repo and branch.' },
     { id: 'score', scene: 'safe', min: 14,
       text: 'Fourth, measurement. OpenTelemetry is tagged with the ticket key, feeding a scorecard from task success rate to cost per PR. Turn and budget caps, maxParallel, and a pinned model and Claude Code version keep cost bounded.' },
 
     { id: 'controls', scene: 'roadmap', min: 13,
       text: 'Each risk has a structural control. Human approval and the audit trail, from Jira history, the GitHub audit log and Claude Code transcripts, line up with the MAS TRM clauses on code review, change approval and traceability.' },
-    { id: 'phases', scene: 'roadmap', min: 13,
+    { id: 'phases', scene: 'roadmap', min: 12,
       text: "The plan is nineteen actions in five phases, starting by proving the unknowns. Three decisions matter most: where the run executes, the agent's GitHub identity, and what starts a run." },
     { id: 'end', scene: 'end', min: 7,
       text: 'Software factory prototype: ticket to PR, one agent step.' },
@@ -58,16 +58,67 @@
 
   const round = (x, step) => Math.round(x / step) * step;
   const wordCount = (s) => s.trim().split(/\s+/).length;
+  const splitSentences = (text) => text.split(/(?<=[.?!])\s+/).map((x) => x.trim()).filter(Boolean);
+
+  // Spoken form for the speech synthesizer (captions keep the written form).
+  const SAY = [
+    [/claude -p/g, 'Claude dash P'],
+    [/agent\/DEMO-42/g, 'agent slash demo forty-two'],
+    [/DEMO-42/g, 'demo forty-two'],
+    [/open-draft-pr\.sh/g, 'open draft P R dot S H'],
+    [/run-ticket\.sh/g, 'run ticket dot S H'],
+    [/verify\.sh/g, 'verify dot S H'],
+    [/ai-ready/g, 'A I ready'],
+    [/ai-generated/g, 'A I generated'],
+    [/OpenAI/g, 'Open A I'],
+    [/OpenTelemetry/g, 'Open Telemetry'],
+    [/StartWorkflow/g, 'Start Workflow'],
+    [/maxParallel/g, 'max parallel'],
+    [/MAS TRM/g, 'M A S, T R M'],
+    [/\bPRs\b/g, 'pull requests'],
+    [/\bPR\b/g, 'P R'],
+    [/\bCLI\b/g, 'C L I'],
+    [/\bCI\b/g, 'C I'],
+    [/\bMCP\b/g, 'M C P'],
+    [/\bgh\b/g, 'G H'],
+    [/130,000/g, 'a hundred and thirty thousand'],
+  ];
+  const say = (text) => SAY.reduce((s, [re, r]) => s.replace(re, r), text);
+
+  // Measured per-sentence clip durations (written by build-audio.py). Without them the
+  // timeline falls back to a reading-pace estimate and the page burns in full captions.
+  let AUDIO = null;
+  if (typeof module !== 'undefined' && module.exports) {
+    try { AUDIO = require('./audio-durations.js'); } catch (e) { AUDIO = null; }
+  } else AUDIO = root.AUDIO_DURATIONS || null;
+  const LEAD = 0.45; // voice starts this long after the beat begins
+  const GAP = 0.3; // silence between sentences within a beat
+  const TAIL = 0.8; // padding after the last sentence of a beat
 
   let t = 0;
   for (const b of BEATS) {
     b.words = wordCount(b.text);
-    b.dur = Math.max(b.min, round(b.words / WORDS_PER_SEC + PAD, 0.5));
-    b.start = t;
+    b.sentences = splitSentences(b.text);
+    const durs = AUDIO && AUDIO.beats && AUDIO.beats[b.id];
+    if (durs && durs.length === b.sentences.length) {
+      const speech = durs.reduce((x, y) => x + y, 0) + GAP * (durs.length - 1);
+      b.dur = Math.max(b.min, round(LEAD + speech + TAIL, 0.1));
+      b.start = t;
+      let c = t + LEAD;
+      b.speech = durs.map((d, i) => { const o = { text: b.sentences[i], say: say(b.sentences[i]), start: c, end: c + d }; c += d + GAP; return o; });
+    } else {
+      b.dur = Math.max(b.min, round(b.words / WORDS_PER_SEC + PAD, 0.5));
+      b.start = t;
+      // estimated sentence spans, proportional to length
+      const a = t + 0.25, z = t + b.dur - 0.3;
+      const tot = b.sentences.reduce((n, x) => n + x.length, 0);
+      let c = a;
+      b.speech = b.sentences.map((x) => { const d = ((z - a) * x.length) / tot; const o = { text: x, say: say(x), start: c, end: c + d }; c += d; return o; });
+    }
     b.end = t + b.dur;
     t = b.end;
   }
-  const DURATION = t;
+  const DURATION = Math.round(t * 1000) / 1000;
 
   // Caption cues: <= MAX chars each, broken at sentence ends or clause punctuation where possible.
   const MAX = 84;
@@ -108,25 +159,38 @@
     return best < 0 ? [s] : [s.slice(0, best), s.slice(best + 1)];
   }
 
+  // Cue times: map each cue's character range onto the sentence time spans.
   const CUES = [];
   for (const b of BEATS) {
+    const offs = []; // [charStart, charEnd, tStart, tEnd] per sentence within the joined text
+    let pos = 0;
+    b.speech.forEach((sp) => { offs.push([pos, pos + sp.text.length, sp.start, sp.end]); pos += sp.text.length + 1; });
+    const timeAt = (ch) => {
+      for (const [c0, c1, t0, t1] of offs) if (ch <= c1) return t0 + ((Math.max(ch, c0) - c0) / Math.max(1, c1 - c0)) * (t1 - t0);
+      return offs[offs.length - 1][3];
+    };
+    const joined = b.speech.map((x) => x.text).join(' ');
+    let from = 0;
     const parts = splitCues(b.text);
-    const a = b.start + 0.25;
-    const z = b.end - 0.3;
-    const weights = parts.map((p) => p.length + 10);
-    const total = weights.reduce((x, y) => x + y, 0);
-    let c = a;
     parts.forEach((p, i) => {
-      const d = ((z - a) * weights[i]) / total;
-      CUES.push({ beat: b.id, start: c, end: c + d - 0.08, text: p, lines: twoLines(p) });
-      c += d;
+      const at = joined.indexOf(p, from);
+      const st = timeAt(at);
+      const en = timeAt(at + p.length);
+      from = at + p.length;
+      CUES.push({ beat: b.id, start: st, end: en, text: p, lines: twoLines(p) });
     });
+    // close small gaps so captions do not flicker between cues of one beat
+    const mine = CUES.filter((c) => c.beat === b.id);
+    for (let i = 0; i < mine.length; i++) {
+      const next = mine[i + 1];
+      mine[i].end = next ? next.start - 0.05 : Math.min(b.end - 0.2, mine[i].end + 0.6);
+    }
   }
 
   const byId = {};
   for (const b of BEATS) byId[b.id] = b;
 
-  const TIMELINE = { BEATS, byId, CUES, DURATION, WORDS_PER_SEC };
+  const TIMELINE = { BEATS, byId, CUES, DURATION, WORDS_PER_SEC, VOICED: !!AUDIO, say, splitSentences };
   if (typeof module !== 'undefined' && module.exports) module.exports = TIMELINE;
   else root.TIMELINE = TIMELINE;
 })(typeof window !== 'undefined' ? window : globalThis);
