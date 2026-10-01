@@ -1,0 +1,6 @@
+out/
+frames/
+node_modules/
+*.mp3
+*.wav
+src/fonts/

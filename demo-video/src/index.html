@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1920, height=1080">
+<title>Software factory demo</title>
+<!-- Inter + JetBrains Mono, downloaded by render.mjs into src/fonts/ (gitignored); local fallbacks otherwise -->
+<link rel="stylesheet" href="fonts/fonts.css">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="stage">
+  <div id="scenes"></div>
+
+  <div id="section-label"></div>
+  <div id="corner-tag"><span class="dot"></span>Prototype concept · simulated</div>
+
+  <div id="caption"><div id="caption-text"></div></div>
+  <div id="progress"><div id="progress-fill"></div></div>
+</div>
+<script src="timeline.js"></script>
+<script src="scenes.js"></script>
+<script>
+  // Manual preview: open index.html?t=123 to see a frame, or ?play to play in real time.
+  (function () {
+    const q = new URLSearchParams(location.search);
+    if (q.has('play')) {
+      const t0 = performance.now() - (parseFloat(q.get('play')) || 0) * 1000;
+      const tick = () => { seek((performance.now() - t0) / 1000); requestAnimationFrame(tick); };
+      requestAnimationFrame(tick);
+    } else {
+      seek(parseFloat(q.get('t')) || 0);
+    }
+  })();
+</script>
+</body>
+</html>
